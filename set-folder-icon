@@ -1,0 +1,206 @@
+if test -z "$BASH_VERSION"; then
+	printf "Error: this script only works in bash.\n" >&2
+	exit 1
+fi
+
+if (( BASH_VERSINFO[0] * 10 + BASH_VERSINFO[1] < 40 )); then
+	printf "Error: this script requires bash version >= 4.0\n" >&2
+	exit 1
+fi
+
+# set -x  # Uncomment to debug this shell script
+set -o errexit \
+	-o noclobber \
+	-o pipefail
+
+readonly THIS_SCRIPT="$(readlink -f "${BASH_SOURCE[0]}")"
+readonly PROGNAME="$(basename "${BASH_SOURCE[0]}")"
+readonly VERSION="0.1.0"
+
+msg() {
+	printf "%s: %b\n" "$PROGNAME" "$*"
+}
+
+err() {
+	msg "Error:" "$*" >&2
+}
+
+fatal() {
+	err "$*"
+	exit 1
+}
+
+usage() {
+			cat <<- EOF
+			USAGE
+			  $ $PROGNAME [options] -d <folder-name> -t <folder-type>
+			OPERATIONS
+			  -t --type <folder-type>  change color of folders
+			  -d --dir                 directory path
+			OPTIONS
+			  -l --list           show available types
+			  -V --version        print $PROGNAME version and exit
+			  -h --help           show this help
+			EOF
+
+			exit "${1:-0}"
+}
+
+_is_valid_type() {
+	local dir_type="$1"
+
+	eval "$(declare_types)"
+
+	for i in "${types[@]}"; do
+		[ "$i" == "$dir_type" ] || continue
+		return 0
+	done
+
+	return 1
+}
+
+declare_types() {
+	local dir_type=''
+	local -a types=()
+	local -a valid_types=("activities" "android" "apple" "applications"
+		"arduino" "backup" "books" "cd" "code" "copy-cloud" "desktop"
+		"development" "documents-open" "documents" "download-open" "download"
+		"downloads" "drag-accept" "dropbox" "favorites" "games" "git" "github"
+		"gitlab" "gnome" "google-drive" "image-people" "important" "java"
+		"kde" "linux" "locked" "mail-cloud" "mail" "mega" "meocloud"
+		"music-open" "music" "network" "nextcloud" "onedrive" "open"
+		"owncloud" "pcloud" "photo" "pictures-open" "pictures" "print"
+		"private" "projects" "public" "publicshare-open" "recent"
+		"remove-open" "remote" "script" "snap" "steam" "sync" "syncthing"
+		"tar" "templates-open" "templates" "torrent" "unlocked" "vbox"
+		"video" "videos-open" "videos" "visiting" "vmware" "wifi"
+		"wine" "yandex-disk") 
+
+	for dir_type in "${valid_types[@]}"; do
+		if [ -e "$THEME_DIR/48x48/places/folder-$dir_type.svg" ]; then
+			types=( "${types[@]}" "$dir_type" )
+		fi
+	done
+
+	# return array of types
+	declare -p types
+}
+
+get_theme_dir() {
+	local data_dir icons_dir
+	local -a data_dirs=()
+	local -a icons_dirs=(
+		"$USER_HOME/.icons"
+		"${XDG_DATA_HOME:-$USER_HOME/.local/share}/icons"
+	)
+
+	local _theme_name="$(gsettings get org.gnome.desktop.interface icon-theme)"
+	# removes trailing quotes
+	local THEME_NAME="${_theme_name:1:-1}"
+
+	# Get data directories from XDG_DATA_DIRS variable and
+	# convert colon-separated list into bash array
+	IFS=: read -ra data_dirs <<< "${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+
+	for data_dir in "${data_dirs[@]}"; do
+		[ -d "$data_dir/icons" ] || continue
+		icons_dirs=( "${icons_dirs[@]}" "${data_dir%/}/icons" )
+	done
+
+	for icons_dir in "${icons_dirs[@]}"; do
+		[ -f "$icons_dir/$THEME_NAME/index.theme" ] || continue
+		printf '%s' "$icons_dir/$THEME_NAME"
+		return 0
+	done
+
+	return 1
+}
+
+list_types() {
+	local dir_type=''
+
+	eval "$(declare_types)"
+
+	for dir_type in "${types[@]}"; do
+		printf '%s\n' "$dir_type"
+	done
+}
+
+change_icon () {
+		_is_valid_type "$SELECTED_TYPE" || {
+			fatal "Unable to find '$SELECTED_TYPE' type in '$THEME_DIR'"
+		}
+		if [[ -d "$SELECTED_FOLDER" ]]; then
+			gio set -t string "$SELECTED_FOLDER" metadata::custom-icon-name "folder-${SELECTED_TYPE}"
+		else
+			fatal "'$SELECTED_FOLDER' is not a path to a directory"
+		fi
+}
+
+parse_args() {
+	# Show help if no argument is passed
+	if [ -z "$1" ]; then
+		usage 2
+	fi
+
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--dir*|-d*)
+				if [[ "$1" != = ]]; then shift; fi
+				SELECTED_FOLDER="${1#*=}"
+				;;
+			--type*|-t*)
+				if [[ "$1" != = ]]; then shift; fi
+				SELECTED_TYPE="${1#*=}"
+				;;
+			--help|-h)
+				usage 0
+				;;
+			--version|-V)
+				printf "%s %s\n" "$PROGNAME" "$VERSION"
+				exit 0
+				;;
+			--list|-l)
+				if [ -t 1 ]; then
+					cat <<- EOF
+					List of available types:
+
+					$(list_types)
+
+					EOF
+				else
+					list_types
+				fi
+				exit 0
+				;;
+			-*)
+				echo "illegal option -- '$1'"
+				usage 2
+				;;
+			*)
+				if [[ -d "$1" && -z "$SELECTED_FOLDER" ]]; then
+					SELECTED_FOLDER="$1"
+				elif [[ -z "$SELECTED_TYPE" ]]; then
+					SELECTED_TYPE="$1"
+				else
+					SELECTED_FOLDER="$1"
+				fi
+				;;
+		esac
+		shift
+	done
+}
+
+main() {
+	declare SELECTED_TYPE='' SELECTED_FOLDER=''
+	declare THEME_DIR="$(get_theme_dir)"
+
+	parse_args "${ARGS[@]}"
+	change_icon
+
+	exit 0
+}
+
+main
+
+exit 1
