@@ -1,3 +1,11 @@
+#!/usr/bin/env bash
+# This script allows changing the icon of a folder
+#
+# @author: Junior Martins (https://github.com/jrom99)
+# @license: MIT license (MIT)
+# @link: https://github.com/jrom99/set-folder-icon
+
+
 if test -z "$BASH_VERSION"; then
 	printf "Error: this script only works in bash.\n" >&2
 	exit 1
@@ -16,6 +24,8 @@ set -o errexit \
 readonly THIS_SCRIPT="$(readlink -f "${BASH_SOURCE[0]}")"
 readonly PROGNAME="$(basename "${BASH_SOURCE[0]}")"
 readonly VERSION="0.1.0"
+readonly -a ARGS=("$@")
+
 
 msg() {
 	printf "%s: %b\n" "$PROGNAME" "$*"
@@ -34,13 +44,12 @@ usage() {
 			cat <<- EOF
 			USAGE
 			  $ $PROGNAME [options] -d <folder-name> -t <folder-type>
-			OPERATIONS
-			  -t --type <folder-type>  change color of folders
-			  -d --dir                 directory path
 			OPTIONS
-			  -l --list           show available types
-			  -V --version        print $PROGNAME version and exit
-			  -h --help           show this help
+			  -t --type <folder-type>   folder icon type
+			  -d --dir  <folder-path>   directory path
+			  -l --list                 show available types
+			  -V --version              print $PROGNAME version and exit
+			  -h --help                 show this help
 			EOF
 
 			exit "${1:-0}"
