@@ -21,9 +21,11 @@ set -o errexit \
 	-o noclobber \
 	-o pipefail
 
-readonly THIS_SCRIPT="$(readlink -f "${BASH_SOURCE[0]}")"
-readonly PROGNAME="$(basename "${BASH_SOURCE[0]}")"
-readonly VERSION="0.1.0"
+PROGNAME="$(basename "${BASH_SOURCE[0]}")"
+VERSION="0.1.1"
+
+readonly PROGNAME
+readonly VERSION
 readonly -a ARGS=("$@")
 
 
@@ -47,6 +49,7 @@ usage() {
 			OPTIONS
 			  -t --type <folder-type>   folder icon type
 			  -d --dir  <folder-path>   directory path
+			     --delete               whether to remove custom icon
 			  -l --list                 show available types
 			  -V --version              print $PROGNAME version and exit
 			  -h --help                 show this help
@@ -104,6 +107,7 @@ get_theme_dir() {
 	)
 
 	local _theme_name="$(gsettings get org.gnome.desktop.interface icon-theme)"
+
 	# removes trailing quotes
 	local THEME_NAME="${_theme_name:1:-1}"
 
@@ -130,9 +134,7 @@ list_types() {
 
 	eval "$(declare_types)"
 
-	for dir_type in "${types[@]}"; do
-		printf '%s\n' "$dir_type"
-	done
+	for i in ${types[@]}; do echo "$i"; done | column
 }
 
 change_icon () {
@@ -141,6 +143,14 @@ change_icon () {
 		}
 		if [[ -d "$SELECTED_FOLDER" ]]; then
 			gio set -t string "$SELECTED_FOLDER" metadata::custom-icon-name "folder-${SELECTED_TYPE}"
+		else
+			fatal "'$SELECTED_FOLDER' is not a path to a directory"
+		fi
+}
+
+delete_icon () {
+		if [[ -d "$SELECTED_FOLDER" ]]; then
+			gio set -d "$SELECTED_FOLDER" metadata::custom-icon-name 
 		else
 			fatal "'$SELECTED_FOLDER' is not a path to a directory"
 		fi
@@ -175,12 +185,14 @@ parse_args() {
 					List of available types:
 
 					$(list_types)
-
 					EOF
 				else
 					list_types
 				fi
 				exit 0
+				;;
+			--delete)
+				DELETE_ICON=1
 				;;
 			-*)
 				echo "illegal option -- '$1'"
@@ -201,15 +213,17 @@ parse_args() {
 }
 
 main() {
-	declare SELECTED_TYPE='' SELECTED_FOLDER=''
+	declare SELECTED_TYPE='' SELECTED_FOLDER='' DELETE_ICON=0
 	declare THEME_DIR="$(get_theme_dir)"
 
 	parse_args "${ARGS[@]}"
-	change_icon
+	if [[ DELETE_ICON -eq 1 ]]; then
+		delete_icon
+	else
+		change_icon
+	fi
 
 	exit 0
 }
 
 main
-
-exit 1
