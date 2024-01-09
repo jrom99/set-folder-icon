@@ -26,7 +26,7 @@ set-folder-icon --list
 
 - [ ] Add changelog
 - [ ] Add auto-completion
-- [ ] Add the ability to see the current icon's name
+- [ ] Improve the ability to see the current icon's name
 
 ## License
 
