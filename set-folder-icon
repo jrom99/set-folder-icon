@@ -135,7 +135,6 @@ get_theme_dirs() {
 	# removes trailing quotes
 	THEME_NAME="$(gsettings get org.gnome.desktop.interface icon-theme)"
 	THEME_NAME="${THEME_NAME//\'/}"
-	themes_order+=( "$THEME_NAME" )
 
 	# set first theme dir
 	for icon_dir in "${icons_dirs[@]}"; do
@@ -145,31 +144,34 @@ get_theme_dirs() {
 		fi
 	done
 
+	[[ ! -d "${THEME_DIRS_DICT[$THEME_NAME]}" ]] && fatal "Theme $THEME_NAME not found"
+	themes_order+=( "$THEME_NAME" )
+
 	CONTINUE=1
 	while [[ $CONTINUE -eq 1 ]]; do
 		# get subthemes
+		CONTINUE=0
 		for theme_dir in "${THEME_DIRS_DICT[@]}"; do
+			[[ "$theme_dir" == "NOTFOUND" ]] && continue
+
 			theme_index="$theme_dir/index.theme"
 			if grep -qoP "(?<=^Inherits=).+" "$theme_index"; then
 				IFS=, read -ra subthemes <<< "$(grep -oP -m1 "(?<=^Inherits=).+" "$theme_index")"
 				for theme_name in "${subthemes[@]}"; do
-					[[ -d "${THEME_DIRS_DICT[$theme_name]}" ]] || THEME_DIRS_DICT[$theme_name]=""
+					if [[ "${THEME_DIRS_DICT[$theme_name]}" == "NOTFOUND" ]]; then
+						continue
+					elif [[ ! -d "${THEME_DIRS_DICT[$theme_name]}" ]]; then
+						THEME_DIRS_DICT[$theme_name]=""
+						CONTINUE=1
+					fi
 				done
-			fi
-		done
-
-		CONTINUE=0
-		for theme_dir in "${THEME_DIRS_DICT[@]}"; do
-			if [[ -z $theme_dir ]]; then
-				CONTINUE=1
-				break
 			fi
 		done
 
 		# search theme dirs
 		for theme_name in "${!THEME_DIRS_DICT[@]}"; do
-			[[ -d "${THEME_DIRS_DICT[$theme_name]}" ]] && continue
-			themes_order+=( "$theme_name" )
+			[[ -z "${THEME_DIRS_DICT[$theme_name]}" ]] || continue
+
 			for icon_dir in "${icons_dirs[@]}"; do
 				theme_dir="$icon_dir/$theme_name"
 				if [[ -d "$theme_dir" && -f "$theme_dir/index.theme" ]]; then
@@ -177,7 +179,12 @@ get_theme_dirs() {
 				fi
 			done
 
-			[[ -z "${THEME_DIRS_DICT[$theme_name]}" ]] && fatal "Theme $theme_name not found"
+			if [[ -d "${THEME_DIRS_DICT[$theme_name]}" ]]; then
+				themes_order+=( "$theme_name" )
+			else
+				err "Theme $theme_name not found"
+				THEME_DIRS_DICT[$theme_name]="NOTFOUND"
+			fi
 		done
 	done
 
