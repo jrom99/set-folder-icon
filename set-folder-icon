@@ -182,7 +182,7 @@ get_theme_dirs() {
 			if [[ -d "${THEME_DIRS_DICT[$theme_name]}" ]]; then
 				themes_order+=( "$theme_name" )
 			else
-				err "Theme $theme_name not found"
+				msg "Warning: Theme $theme_name not found"
 				THEME_DIRS_DICT[$theme_name]="NOTFOUND"
 			fi
 		done
